@@ -46,22 +46,25 @@ export default function ChatInput({
     <div className="p-6 border-t border-gray-200 dark:border-gray-700">
       {/* Context Information */}
       {messages.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="flex items-center text-sm text-blue-800 dark:text-blue-200">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            <span className="font-medium">Önceki Prompt:</span>
-            <span className="ml-2 text-blue-600 dark:text-blue-400">
-              "{getLastPrompt()?.content || ''}"
-            </span>
+        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex items-center text-sm text-gray-700 dark:text-gray-300 mb-3">
+            <MessageSquare className="h-4 w-4 mr-2 text-gray-500" />
+            <span className="font-medium">Önceki AI Response:</span>
           </div>
           {getLastResponse() && (
-            <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
-              <span className="font-medium">Son Response:</span>
-              <span className="ml-2">
-                {getLastResponse()?.content.substring(0, 100)}...
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <span className="font-medium text-gray-700 dark:text-gray-300">Önceki Response:</span>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">
+                {getLastResponse()?.content.split(' ').slice(0, 20).join(' ')}...
               </span>
             </div>
           )}
+          {/* <div className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="font-medium text-gray-700 dark:text-gray-300">Önceki Prompt:</span>
+            <span className="ml-2 text-gray-500 dark:text-gray-400 italic">
+              "{getLastPrompt()?.content || ''}"
+            </span>
+          </div> */}
         </div>
       )}
 
@@ -74,7 +77,7 @@ export default function ChatInput({
             placeholder={
               selectedProvider 
                 ? messages.length > 0
-                  ? "Önceki response'u referans alarak yeni prompt girin..."
+                  ? `Önceki response otomatik eklenecek. ${selectedProviderInfo?.name} için yeni direktif girin...`
                   : `${selectedProviderInfo?.name} ile sohbet edin...`
                 : 'Önce bir AI servisi seçin'
             }
@@ -103,9 +106,10 @@ export default function ChatInput({
         <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
           <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">💡 Kullanım İpuçları:</h4>
           <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-            <li>• Farklı AI'lar arasında geçiş yaparak sonuçları karşılaştırabilirsiniz</li>
-            <li>• Önceki response'u referans alarak yeni prompt'lar yazabilirsiniz</li>
-            <li>• Her AI'nın güçlü yanlarını keşfedin</li>
+            <li>• <strong>AI Değiştirme:</strong> Farklı AI'lar arasında geçiş yaparak sonuçları karşılaştırabilirsiniz</li>
+            <li>• <strong>Otomatik Referans:</strong> Önceki AI response'u otomatik olarak yeni prompt'a eklenir</li>
+            <li>• <strong>Örnek:</strong> "Daha insancıl yazılsın", "Daha resmi olsun", "Kısalt" gibi direktifler ekleyebilirsiniz</li>
+            <li>• <strong>Zincirleme İyileştirme:</strong> Her AI önceki response'u görür ve üzerine iyileştirme yapar</li>
           </ul>
         </div>
       )}
