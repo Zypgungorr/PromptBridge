@@ -10,7 +10,7 @@ namespace PromptBridge.API.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/chat")]
     public class ChatController : ControllerBase
     {
         private readonly PromptBridgeContext _context;
@@ -23,10 +23,14 @@ namespace PromptBridge.API.Controllers
         [HttpGet("sessions")]
         public async Task<ActionResult<List<ChatSessionDto>>> GetChatSessions()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Invalid user token" });
+            }
+
             var sessions = await _context.ChatSessions
-                .Where(s => s.UserId == userId && s.IsActive)
+                .Where(s => s.UserId == userId)
                 .OrderByDescending(s => s.LastActivityAt)
                 .Select(s => new ChatSessionDto
                 {
@@ -34,7 +38,7 @@ namespace PromptBridge.API.Controllers
                     Title = s.Title,
                     CreatedAt = s.CreatedAt,
                     LastActivityAt = s.LastActivityAt,
-                    MessageCount = s.Messages.Count
+                    MessageCount = _context.ChatMessages.Count(m => m.ChatSessionId == s.Id)
                 })
                 .ToListAsync();
 
@@ -44,13 +48,17 @@ namespace PromptBridge.API.Controllers
         [HttpGet("sessions/{sessionId}/messages")]
         public async Task<ActionResult<List<ChatMessageDto>>> GetChatMessages(int sessionId)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Invalid user token" });
+            }
+
             var session = await _context.ChatSessions
                 .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
-            
+
             if (session == null)
-                return NotFound();
+                return NotFound(new { message = "Session not found" });
 
             var messages = await _context.ChatMessages
                 .Where(m => m.ChatSessionId == sessionId)
@@ -69,12 +77,28 @@ namespace PromptBridge.API.Controllers
             return Ok(messages);
         }
 
+        // Yeni bir sohbet oturumu oluştur
         [HttpPost("sessions")]
         public async Task<ActionResult<ChatSessionDto>> CreateChatSession([FromBody] CreateChatSessionDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
-            var session = new ChatSession
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Invalid user token" });
+            }
+
+            // Mevcut aktif oturumları deaktif et
+            var activeSessions = await _context.ChatSessions
+                .Where(s => s.UserId == userId && s.IsActive)
+                .ToListAsync();
+
+            foreach (var session in activeSessions)
+            {
+                session.IsActive = false;
+            }
+
+            // Yeni oturum oluştur
+            var newSession = new ChatSession
             {
                 UserId = userId,
                 Title = dto.Title ?? "Yeni Sohbet",
@@ -83,47 +107,41 @@ namespace PromptBridge.API.Controllers
                 IsActive = true
             };
 
-            _context.ChatSessions.Add(session);
+            _context.ChatSessions.Add(newSession);
             await _context.SaveChangesAsync();
 
             return Ok(new ChatSessionDto
             {
-                Id = session.Id,
-                Title = session.Title,
-                CreatedAt = session.CreatedAt,
-                LastActivityAt = session.LastActivityAt,
+                Id = newSession.Id,
+                Title = newSession.Title,
+                CreatedAt = newSession.CreatedAt,
+                LastActivityAt = newSession.LastActivityAt,
                 MessageCount = 0
             });
         }
 
-        [HttpPost("sessions/{sessionId}/messages")]
-        public async Task<ActionResult> AddMessage(int sessionId, [FromBody] ChatMessageDto dto)
+        // Belirli bir oturumu deaktif et
+        [HttpPut("sessions/{sessionId}/deactivate")]
+        public async Task<ActionResult> DeactivateSession(int sessionId)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Invalid user token" });
+            }
+
             var session = await _context.ChatSessions
                 .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
-            
+
             if (session == null)
-                return NotFound();
-
-            var message = new ChatMessage
             {
-                ChatSessionId = sessionId,
-                Content = dto.Content,
-                IsUserMessage = dto.IsUserMessage,
-                AIProviderId = dto.AIProviderId,
-                CreatedAt = DateTime.UtcNow
-            };
+                return NotFound(new { message = "Session not found" });
+            }
 
-            _context.ChatMessages.Add(message);
-            
-            // Update session last activity
-            session.LastActivityAt = DateTime.UtcNow;
-            
+            session.IsActive = false;
             await _context.SaveChangesAsync();
 
-            return Ok();
+            return Ok(new { message = "Session deactivated" });
         }
     }
 }

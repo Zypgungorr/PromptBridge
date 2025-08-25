@@ -9,7 +9,7 @@ import { Header, AIProviderSelector, QuickActions, ChatArea } from '@/components
 import type { AIProvider, ChatMessage } from '@/types/dashboard'
 import { useAuth } from '@/contexts/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import ChatHistory from '@/components/dashboard/ChatHistory';
+import ChatHistory from '@/components/dashboard/ChatHistory'
 
 export default function DashboardPage() {
   const { logout, token } = useAuth()
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
-  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
 
   // AI Provider'ları backend'den çek
   useEffect(() => {
@@ -59,12 +59,18 @@ export default function DashboardPage() {
             
             return {
               ...provider,
+              id: provider.id.toString(), // ID'yi string'e çevir
               icon,
               color
             }
           })
           
           setAiProviders(providersWithUI)
+          // Eğer seçili provider yoksa ilkini otomatik seç
+          if (!selectedProvider && providersWithUI.length > 0) {
+            setSelectedProvider(providersWithUI[0].id)
+          }
+
         }
       } catch (error) {
         console.error('Error fetching providers:', error)
@@ -79,17 +85,94 @@ export default function DashboardPage() {
   }, [token])
   
 
-  const handleLoadSession = (messages: ChatMessage[]) => {
-    setMessages(messages);
+const handleLoadSession = async (sessionId: string) => {
+  try {
+    console.log('Loading session messages for:', sessionId); // Debug için
+    
+    // Önce mevcut session'ı deaktif et (eğer varsa)
+    if (currentSessionId) {
+      try {
+        await fetch(`http://localhost:5170/api/chat/sessions/${currentSessionId}/deactivate`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (error) {
+        console.error('Error deactivating current session:', error);
+      }
+    }
+    // Yeni session'ı aktif et
+    setCurrentSessionId(Number(sessionId));
+    localStorage.setItem('activeSessionId', sessionId);
+    
+    // Session mesajlarını yükle
+    const response = await fetch(`http://localhost:5170/api/chat/sessions/${sessionId}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      const messages = await response.json();
+      console.log('Loaded messages:', messages); // Debug için
+      
+      // Backend'den gelen mesajları frontend formatına çevir
+      const formattedMessages: ChatMessage[] = messages.map((msg: any) => ({
+        id: msg.id.toString(),
+        role: msg.isUserMessage ? 'user' : 'assistant',
+        content: msg.content,
+        providerId: msg.aiProviderId?.toString() || '',
+        providerName: msg.aiProviderName || 'AI',
+        timestamp: new Date(msg.createdAt),
+        prompt: msg.isUserMessage ? msg.content : undefined
+      }));
+
+      setMessages(formattedMessages);
+    } else {
+      console.error('Failed to load session messages');
+    }
+    
     setShowHistory(false);
+  } catch (error) {
+    console.error('Error loading session:', error);
+  }
+};
+
+
+  // Yeni sohbet başlatma fonksiyonu
+  const handleNewChat = async () => {
+    try {
+      // Backend'de yeni session oluştur
+      const response = await fetch('http://localhost:5170/api/prompt/sessions/new', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Yeni session'ı aktif et
+        setCurrentSessionId(data.id);
+        localStorage.setItem('activeSessionId', data.id);
+        
+        // Mesajları temizle
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Yeni session oluşturulamadı:', error);
+      // Hata durumunda sadece local state'i temizle
+      setMessages([]);
+      setCurrentSessionId(null);
+      localStorage.removeItem('activeSessionId');
+    }
   };
 
-  const handleNewChat = () => {
-    setMessages([]);
-    setCurrentSessionId(null);
-    localStorage.removeItem('activeSessionId');
-  };
-
+  // Mesaj gönderme fonksiyonu
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedProvider) return
 
@@ -111,16 +194,13 @@ export default function DashboardPage() {
     setIsLoading(true)
 
     try {
-      // Önceki AI response'unu al
       const lastResponse = messages.filter(m => m.role === 'assistant').pop()
       
-      // Eğer önceki response varsa, onu da prompt'a ekle
       let fullPrompt = inputMessage
       if (lastResponse) {
         fullPrompt = `Önceki AI Response:\n${lastResponse.content}\n\nYeni İstek:\n${inputMessage}`
       }
       
-      // Backend'e prompt gönder
       const response = await fetch('http://localhost:5170/api/prompt/send', {
         method: 'POST',
         headers: {
@@ -146,7 +226,6 @@ export default function DashboardPage() {
         setMessages(prev => [...prev, aiMessage])
 
       } else {
-        // Hata durumunda fallback mesaj
         const aiMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -159,7 +238,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error sending prompt:', error)
-      // Hata durumunda fallback mesaj
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -174,6 +252,7 @@ export default function DashboardPage() {
     }
   }
 
+  // Mesaj kopyalama fonksiyonu
   const copyToClipboard = async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -184,15 +263,11 @@ export default function DashboardPage() {
     }
   }
 
-  const clearChat = () => {
-    setMessages([])
-  }
-
+  // Provider değiştirme fonksiyonu
   const handleProviderChange = (providerId: string) => {
     const previousProvider = selectedProvider
     setSelectedProvider(providerId)
     
-    // Eğer önceki provider'dan farklı bir provider seçildiyse ve mesaj varsa
     if (previousProvider && previousProvider !== providerId && messages.length > 0) {
       const lastResponse = messages.filter(m => m.role === 'assistant').pop()
       if (lastResponse) {
@@ -202,6 +277,7 @@ export default function DashboardPage() {
     }
   }
 
+  // Yüklenme durumu
   if (providersLoading) {
     return (
       <ProtectedRoute>
@@ -226,32 +302,27 @@ export default function DashboardPage() {
 
         <div className="max-w-full mx-auto px-10 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Sidebar - AI Provider Selection */}
+            {/* Sol Kenar Çubuğu - AI Provider Seçimi ve Hızlı Aksiyonlar */}
             <div className="lg:col-span-1">
-                                      <AIProviderSelector
-              providers={aiProviders}
-              selectedProvider={selectedProvider}
-              onSelectProvider={handleProviderChange}
-            />
-            
-            {providerChangeMessage && (
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm text-green-800 dark:text-green-200">{providerChangeMessage}</p>
-              </div>
-            )}
-            
-            {/* <QuickActions onClearChat={clearChat} /> */}
-            <QuickActions
+              <AIProviderSelector
+                providers={aiProviders}
+                selectedProvider={selectedProvider}
+                onSelectProvider={handleProviderChange}
+              />
+              
+              {providerChangeMessage && (
+                <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-800 dark:text-green-200">{providerChangeMessage}</p>
+                </div>
+              )}
+              
+              <QuickActions
                 onShowHistory={() => setShowHistory(true)}
-                onNewChat={() => {
-                  setMessages([]);
-                  setCurrentSessionId(null);
-                }}
-                
+                onNewChat={handleNewChat}
               />
             </div>
 
-            {/* Main Chat Area */}
+            {/* Ana Sohbet Alanı */}
             <div className="lg:col-span-2">
               <ChatArea
                 selectedProvider={selectedProvider}
@@ -267,12 +338,13 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        {/* Chat History Modal */}
+        
+        {/* Chat Geçmişi Modalı */}
         <ChatHistory
           isVisible={showHistory}
           onClose={() => setShowHistory(false)}
           onLoadSession={handleLoadSession}
-          currentSessionId={currentSessionId}
+          currentSessionId={currentSessionId ? currentSessionId.toString() : ''}
         />
       </div>
     </ProtectedRoute>

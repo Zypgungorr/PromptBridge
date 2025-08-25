@@ -5,7 +5,7 @@ import { History, MessageSquare, Trash2, Plus } from 'lucide-react';
 import type { ChatMessage } from '@/types/dashboard';
 
 interface ChatSession {
-  id: number;
+  id: string;
   title: string;
   createdAt: string;
   lastActivityAt: string;
@@ -15,8 +15,8 @@ interface ChatSession {
 interface ChatHistoryProps {
   isVisible: boolean;
   onClose: () => void;
-  onLoadSession: (messages: ChatMessage[]) => void;
-  currentSessionId: number | null;
+  onLoadSession: (sessionId: string) => void; // string olarak
+  currentSessionId: string | null; // string olarak
 }
 
 export default function ChatHistory({ 
@@ -27,7 +27,7 @@ export default function ChatHistory({
 }: ChatHistoryProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -41,6 +41,7 @@ export default function ChatHistory({
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched sessions:', data); 
         setSessions(data);
       }
     } catch (error) {
@@ -50,30 +51,12 @@ export default function ChatHistory({
     }
   };
 
-  const loadSession = async (sessionId: number) => {
+  const loadSession = async (sessionId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5170/api/chat/sessions/${sessionId}/messages`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const messages = await response.json();
-        const formattedMessages = messages.map((msg: any) => ({
-          id: msg.id.toString(),
-          role: msg.isUserMessage ? 'user' : 'assistant',
-          content: msg.content,
-          providerId: msg.aiProviderId?.toString() || null,
-          providerName: msg.aiProviderName || 'AI',
-          timestamp: new Date(msg.createdAt),
-          prompt: msg.isUserMessage ? msg.content : undefined
-        }));
-        
-        onLoadSession(formattedMessages);
-        setSelectedSessionId(sessionId);
-      }
+      console.log('Loading session:', sessionId); 
+      // Sadece sessionId'yi parent'a gönder
+      onLoadSession(sessionId);
+      setSelectedSessionId(sessionId);
     } catch (error) {
       console.error('Error loading session:', error);
     }
@@ -82,7 +65,7 @@ export default function ChatHistory({
   const createNewSession = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5170/api/chat/sessions', {
+      const response = await fetch('http://localhost:5170/api/prompt/sessions/new', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -114,7 +97,7 @@ export default function ChatHistory({
           <div className="flex items-center space-x-2">
             <History className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Chat Geçmişi
+              Chat Geçmişi ({sessions.length} sohbet)
             </h2>
           </div>
           <button
