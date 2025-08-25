@@ -18,7 +18,7 @@ export default function AIProviderSelector({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
       <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">AI Servisi Seçin</h2>
-      <div className="space-y-3">
+      <div className="flex flex-wrap gap-3">
         {providers.map((provider) => {
           const IconComponent = provider.icon
           const isSelected = selectedProvider === provider.id

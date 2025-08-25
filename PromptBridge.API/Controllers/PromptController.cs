@@ -99,12 +99,17 @@ namespace PromptBridge.API.Controllers
                 // Return response DTO
                 return Ok(new PromptResponseDto
                 {
+                    Id = 0,
                     AIProviderId = request.AIProviderId,
+                    AIProviderName = "",
                     Prompt = request.Prompt,
                     Response = aiResponse,
                     Status = "Completed",
                     CreatedAt = DateTime.UtcNow,
                     CompletedAt = DateTime.UtcNow,
+                    ResponseTimeMs = null,
+                    ErrorMessage = null,
+                    SessionId = activeSession.Id
                 });
             }
             catch (Exception ex)
@@ -112,6 +117,87 @@ namespace PromptBridge.API.Controllers
                 return StatusCode(500, new { message = $"An error occurred while processing the prompt: {ex.Message}" });
             }
         }
+
+        [HttpGet("chat/sessions")]
+        public async Task<ActionResult<List<ChatSessionDto>>> GetChatSessions()
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    return Unauthorized(new { message = "Invalid user token" });
+                }
+
+                var sessions = await _context.ChatSessions
+                    .Where(s => s.UserId == userId)
+                    .OrderByDescending(s => s.LastActivityAt)
+                    .Select(s => new ChatSessionDto
+                    {
+                        Id = s.Id,
+                        Title = s.Title,
+                        CreatedAt = s.CreatedAt,
+                        LastActivityAt = s.LastActivityAt,
+                        MessageCount = _context.ChatMessages.Count(m => m.ChatSessionId == s.Id)
+                    })
+                    .ToListAsync();
+
+                return Ok(sessions);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error retrieving chat sessions: {ex.Message}" });
+            }
+        }
+
+        [HttpPost("sessions/new")]
+        public async Task<ActionResult<ChatSessionDto>> CreateNewSession()
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    return Unauthorized(new { message = "Invalid user token" });
+                }
+
+                // Mevcut aktif session'ları deaktif et
+                var activeSessions = await _context.ChatSessions
+                    .Where(s => s.UserId == userId && s.IsActive)
+                    .ToListAsync();
+
+                foreach (var session in activeSessions)
+                {
+                    session.IsActive = false;
+                }
+
+                // Yeni session oluştur
+                var newSession = new ChatSession
+                {
+                    UserId = userId,
+                    Title = "Yeni Sohbet",
+                    CreatedAt = DateTime.UtcNow,
+                    LastActivityAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                _context.ChatSessions.Add(newSession);
+                await _context.SaveChangesAsync();
+                return Ok(new ChatSessionDto
+                {
+                    Id = int.Parse(newSession.Id.ToString()),
+                    Title = newSession.Title ?? "Yeni Sohbet",
+                    LastActivityAt = DateTime.Parse(newSession.LastActivityAt.ToString("yyyy-MM-dd HH:mm:ss")),
+                    CreatedAt = DateTime.Parse(newSession.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")),
+                    MessageCount = 0
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error creating new session: {ex.Message}" });
+            }
+        }
+
 
     }
 }

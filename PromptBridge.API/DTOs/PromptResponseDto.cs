@@ -12,7 +12,7 @@ namespace PromptBridge.API.DTOs
         public DateTime? CompletedAt { get; set; }
         public int? ResponseTimeMs { get; set; }
         public string? ErrorMessage { get; set; }
-
+        
         public int SessionId { get; set; } 
     }
 }
