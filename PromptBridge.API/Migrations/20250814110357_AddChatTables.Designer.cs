@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PromptBridge.API.Data;
@@ -11,9 +12,11 @@ using PromptBridge.API.Data;
 namespace PromptBridge.API.Migrations
 {
     [DbContext(typeof(PromptBridgeContext))]
-    partial class PromptBridgeContextModelSnapshot : ModelSnapshot
+    [Migration("20250814110357_AddChatTables")]
+    partial class AddChatTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
