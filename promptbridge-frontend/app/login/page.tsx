@@ -166,7 +166,7 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <input
+                  {/* <input
                     id="remember-me"
                     name="remember-me"
                     type="checkbox"
@@ -176,14 +176,14 @@ export default function LoginPage() {
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                     Beni hatırla
-                  </label>
+                  </label> */}
                 </div>
 
-                <div className="text-sm">
+                {/* <div className="text-sm">
                   <a href="#" className="font-medium text-purple-600 dark:text-purple-400 hover:text-purple-500">
                     Şifremi unuttum
                   </a>
-                </div>
+                </div> */}
               </div>
 
               <div>

@@ -97,7 +97,7 @@ export default function ChatHistory({
           <div className="flex items-center space-x-2">
             <History className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Chat Geçmişi ({sessions.length} sohbet)
+              Chat Geçmişi ({sessions.filter(s => s.messageCount > 0).length} sohbet)
             </h2>
           </div>
           <button

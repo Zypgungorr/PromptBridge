@@ -57,7 +57,7 @@ namespace PromptBridge.API.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AIProviders");
+                    b.ToTable("AIProviders", (string)null);
 
                     b.HasData(
                         new
@@ -122,7 +122,7 @@ namespace PromptBridge.API.Migrations
 
                     b.HasIndex("ChatSessionId");
 
-                    b.ToTable("ChatMessages");
+                    b.ToTable("ChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("PromptBridge.API.Models.ChatSession", b =>
@@ -153,7 +153,7 @@ namespace PromptBridge.API.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("ChatSessions");
+                    b.ToTable("ChatSessions", (string)null);
                 });
 
             modelBuilder.Entity("PromptBridge.API.Models.PromptRequest", b =>
@@ -203,7 +203,7 @@ namespace PromptBridge.API.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PromptRequests");
+                    b.ToTable("PromptRequests", (string)null);
                 });
 
             modelBuilder.Entity("PromptBridge.API.Models.User", b =>
@@ -243,7 +243,7 @@ namespace PromptBridge.API.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("PromptBridge.API.Models.ChatMessage", b =>
