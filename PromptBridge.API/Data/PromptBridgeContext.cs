@@ -12,6 +12,8 @@ namespace PromptBridge.API.Data
         public DbSet<User> Users { get; set; }
         public DbSet<AIProvider> AIProviders { get; set; }
         public DbSet<PromptRequest> PromptRequests { get; set; }
+        public DbSet<ChatSession> ChatSessions { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -65,26 +67,26 @@ namespace PromptBridge.API.Data
 
             // Seed data for AI Providers
             modelBuilder.Entity<AIProvider>().HasData(
-                new AIProvider
-                {
-                    Id = 1,
-                    Name = "OpenAI GPT",
-                    BaseUrl = "https://api.openai.com/v1",
-                    ApiKey = "", // API key loaded from configuration
-                    Description = "OpenAI GPT-3.5/4 API",
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new AIProvider
-                {
-                    Id = 2,
-                    Name = "Anthropic Claude",
-                    BaseUrl = "https://api.anthropic.com/v1",
-                    ApiKey = "", // API key loaded from configuration
-                    Description = "Anthropic Claude API",
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
+                // new AIProvider
+                // {
+                //     Id = 1,
+                //     Name = "OpenAI GPT",
+                //     BaseUrl = "https://api.openai.com/v1",
+                //     ApiKey = "", // API key loaded from configuration
+                //     Description = "OpenAI GPT-3.5/4 API",
+                //     IsActive = true,
+                //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                // },
+                // new AIProvider
+                // {
+                //     Id = 2,
+                //     Name = "Anthropic Claude",
+                //     BaseUrl = "https://api.anthropic.com/v1",
+                //     ApiKey = "", // API key loaded from configuration
+                //     Description = "Anthropic Claude API",
+                //     IsActive = true,
+                //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                // },
                 new AIProvider
                 {
                     Id = 3,
@@ -95,16 +97,16 @@ namespace PromptBridge.API.Data
                     IsActive = true,
                     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 },
-                new AIProvider
-                {
-                    Id = 4,
-                    Name = "Grok",
-                    BaseUrl = "https://api.x.ai/v1",
-                    ApiKey = "", // API key loaded from configuration
-                    Description = "xAI Grok-2 API",
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
+                // new AIProvider
+                // {
+                //     Id = 4,
+                //     Name = "Grok",
+                //     BaseUrl = "https://api.x.ai/v1",
+                //     ApiKey = "", // API key loaded from configuration
+                //     Description = "xAI Grok-2 API",
+                //     IsActive = true,
+                //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                // },
                 new AIProvider
                 {
                     Id = 5,
@@ -124,27 +126,27 @@ namespace PromptBridge.API.Data
                     Description = "Cohere Command-R API",
                     IsActive = true,
                     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new AIProvider
-                {
-                    Id = 7,
-                    Name = "HuggingFace",
-                    BaseUrl = "https://api-inference.huggingface.co",
-                    ApiKey = "", // API key loaded from configuration
-                    Description = "HuggingFace Open Source AI Models",
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new AIProvider
-                {
-                    Id = 8,
-                    Name = "Vercel",
-                    BaseUrl = "https://api.vercel.com/v1",
-                    ApiKey = "", // API key loaded from configuration
-                    Description = "Vercel AI SDK - 100+ AI Models (OpenAI, Anthropic, xAI, Google, Meta)",
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 }
+                // new AIProvider
+                // {
+                //     Id = 7,
+                //     Name = "HuggingFace",
+                //     BaseUrl = "https://api-inference.huggingface.co",
+                //     ApiKey = "", // API key loaded from configuration
+                //     Description = "HuggingFace Open Source AI Models",
+                //     IsActive = true,
+                //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                // },
+                // new AIProvider
+                // {
+                //     Id = 8,
+                //     Name = "Vercel",
+                //     BaseUrl = "https://api.vercel.com/v1",
+                //     ApiKey = "", // API key loaded from configuration
+                //     Description = "Vercel AI SDK - 100+ AI Models (OpenAI, Anthropic, xAI, Google, Meta)",
+                //     IsActive = true,
+                //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                // }
             );
         }
     }

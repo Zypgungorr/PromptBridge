@@ -135,7 +135,7 @@ export default function RegisterPage() {
       <div className="flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center mr-4">
+            <div className="w-16 h-16 bg-purple-500 rounded-lg flex items-center justify-center mr-4">
               <span className="text-white font-bold text-3xl">P</span>
             </div>
             <div className="flex items-center">

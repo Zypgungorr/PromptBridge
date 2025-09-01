@@ -16,3 +16,11 @@ export interface ChatMessage {
   timestamp: Date
   prompt?: string
 }
+
+export interface ChatSession {
+  id: number;
+  title: string;
+  createdAt: string;
+  lastActivityAt: string;
+  messageCount: number;
+}
