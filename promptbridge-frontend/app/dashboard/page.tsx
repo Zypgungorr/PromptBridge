@@ -5,8 +5,10 @@ import {
   Brain,
   Zap
 } from 'lucide-react'
-import { Header, AIProviderSelector, QuickActions, ChatArea } from '@/components/dashboard'
-import type { AIProvider, ChatMessage } from '@/types/dashboard'
+import { Header, AIProviderSelector, ChatArea } from '@/components/dashboard'
+import PipelineTemplates from '@/components/dashboard/PipelineTemplates'
+import PipelineBuilder from '@/components/dashboard/PipelineBuilder'
+import type { AIProvider, ChatMessage, CustomPipelineData } from '@/types/dashboard'
 import { useAuth } from '@/contexts/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import ChatHistory from '@/components/dashboard/ChatHistory'
@@ -22,6 +24,8 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [showPipelines, setShowPipelines] = useState(false)
+  const [showPipelineBuilder, setShowPipelineBuilder] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
 
   // AI Provider'ları backend'den çek
@@ -84,6 +88,31 @@ export default function DashboardPage() {
     }
   }, [token])
   
+  // Sayfa yüklendiğinde aktif session'ı geri yükle
+  useEffect(() => {
+    const loadActiveSession = async () => {
+      if (!token) return
+      
+      const activeSessionId = localStorage.getItem('activeSessionId')
+      if (activeSessionId && activeSessionId !== 'null') {
+        console.log('Aktif session bulundu, yükleniyor:', activeSessionId)
+        try {
+          await handleLoadSession(activeSessionId)
+        } catch (error) {
+          console.error('Aktif session yüklenirken hata:', error)
+          // Hata durumunda localStorage'ı temizle
+          localStorage.removeItem('activeSessionId')
+          setCurrentSessionId(null)
+        }
+      }
+    }
+    
+    // Provider'lar yüklendikten sonra session'ı yükle
+    if (!providersLoading && token) {
+      loadActiveSession()
+    }
+  }, [providersLoading, token])
+  
 
 const handleLoadSession = async (sessionId: string) => {
   try {
@@ -103,8 +132,10 @@ const handleLoadSession = async (sessionId: string) => {
         console.error('Error deactivating current session:', error);
       }
     }
+    
     // Yeni session'ı aktif et
-    setCurrentSessionId(Number(sessionId));
+    const sessionIdNum = parseInt(sessionId)
+    setCurrentSessionId(sessionIdNum);
     localStorage.setItem('activeSessionId', sessionId);
     
     // Session mesajlarını yükle
@@ -130,13 +161,16 @@ const handleLoadSession = async (sessionId: string) => {
       }));
 
       setMessages(formattedMessages);
+      console.log('Session başarıyla yüklendi:', sessionId)
     } else {
       console.error('Failed to load session messages');
+      throw new Error('Failed to load session messages')
     }
     
     setShowHistory(false);
   } catch (error) {
     console.error('Error loading session:', error);
+    throw error; // Hatayı yukarı ilet
   }
 };
 
@@ -215,6 +249,14 @@ const handleLoadSession = async (sessionId: string) => {
 
       if (response.ok) {
         const data = await response.json()
+        
+        // Eğer response'da sessionId varsa, onu localStorage'a kaydet
+        if (data.sessionId) {
+          setCurrentSessionId(data.sessionId)
+          localStorage.setItem('activeSessionId', data.sessionId.toString())
+          console.log('Session ID güncellendi:', data.sessionId)
+        }
+        
         const aiMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -277,6 +319,264 @@ const handleLoadSession = async (sessionId: string) => {
     }
   }
 
+  // Pipeline execution fonksiyonu
+  const handleExecutePipeline = async (pipelineId: number, prompt: string) => {
+    setShowPipelines(false)
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('http://localhost:5170/api/pipeline/execute', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pipelineId,
+          initialPrompt: prompt
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        
+        // Eğer aktif session yoksa yeni bir tane oluştur
+        let sessionId = currentSessionId
+        if (!sessionId) {
+          const newSessionResponse = await fetch('http://localhost:5170/api/prompt/sessions/new', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (newSessionResponse.ok) {
+            const sessionData = await newSessionResponse.json()
+            sessionId = sessionData.id
+            setCurrentSessionId(sessionId)
+            if (sessionId) {
+              localStorage.setItem('activeSessionId', sessionId.toString())
+            }
+          }
+        }
+
+        // Pipeline sonucunu backend'e kaydet
+        if (sessionId) {
+          // User message'ı kaydet
+          const saveUserResponse = await fetch('http://localhost:5170/api/prompt/save-pipeline-message', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              content: prompt,
+              isUserMessage: true,
+              pipelineId: pipelineId
+            })
+          })
+
+          // AI response'ı kaydet
+          const saveAiResponse = await fetch('http://localhost:5170/api/prompt/save-pipeline-message', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              content: result.finalResponse,
+              isUserMessage: false,
+              pipelineId: pipelineId
+            })
+          })
+        }
+        
+        // Pipeline sonucunu chat'e ekle
+        const userMessage: ChatMessage = {
+          id: Date.now().toString() + '-user',
+          role: 'user',
+          content: prompt,
+          providerId: 'pipeline',
+          providerName: 'AI Pipeline',
+          timestamp: new Date(),
+          prompt: prompt
+        }
+
+        const aiMessage: ChatMessage = {
+          id: Date.now().toString() + '-ai',
+          role: 'assistant',
+          content: result.finalResponse,
+          providerId: 'pipeline',
+          providerName: `Pipeline #${pipelineId}`,
+          timestamp: new Date()
+        }
+
+        setMessages(prev => [...prev, userMessage, aiMessage])
+      } else {
+        console.error('Pipeline execution failed')
+        // Hata mesajı gösterebiliriz
+      }
+    } catch (error) {
+      console.error('Error executing pipeline:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Custom Pipeline Execution fonksiyonu
+  const handleExecuteCustomPipeline = async (pipelineData: CustomPipelineData) => {
+    setIsLoading(true)
+
+    try {
+      let stepResponses: string[] = []
+      let finalResult = ''
+
+      console.log('Pipeline başlatılıyor:', pipelineData.name)
+      console.log('Adım sayısı:', pipelineData.steps.length)
+      console.log('Başlangıç metni:', pipelineData.userInput)
+
+      // Her adımı sırayla çalıştır
+      for (let i = 0; i < pipelineData.steps.length; i++) {
+        const step = pipelineData.steps[i]
+        const stepNumber = i + 1
+        
+        console.log(`\n--- ADIM ${stepNumber} BAŞLIYOR ---`)
+        console.log('AI Provider ID:', step.aiProviderId)
+        console.log('Orijinal Prompt Template:', step.prompt)
+
+        // Prompt template'ini işle
+        let processedPrompt = step.prompt
+          .replace(/{userInput}/g, pipelineData.userInput || '')
+          .replace(/{previousResponse}/g, stepResponses[i - 1] || '')
+
+        console.log('İşlenmiş Prompt:', processedPrompt)
+
+        // AI Provider'a istek gönder
+        const response = await fetch('http://localhost:5170/api/prompt/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            AIProviderId: step.aiProviderId,
+            Prompt: processedPrompt
+          })
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          const aiResponse = result.response || result.aiResponse || result.content || 'Yanıt alınamadı'
+          
+          console.log('AI Response:', aiResponse)
+          stepResponses.push(aiResponse)
+          
+          // Provider adını bul
+          const providerName = aiProviders.find(p => p.id === step.aiProviderId)?.name || 'AI Provider'
+          
+          finalResult += `\n\n**${stepNumber}. Adım (${providerName}):**\n${aiResponse}`
+        } else {
+          const errorText = await response.text()
+          console.error(`Adım ${stepNumber} başarısız:`, errorText)
+          throw new Error(`Adım ${stepNumber} başarısız oldu: ${errorText}`)
+        }
+      }
+
+      console.log('\n--- PIPELINE TAMAMLANDI ---')
+      console.log('Final sonuç:', finalResult)
+
+      // Eğer aktif session yoksa yeni bir tane oluştur
+      let sessionId = currentSessionId
+      if (!sessionId) {
+        const newSessionResponse = await fetch('http://localhost:5170/api/chat/sessions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            title: pipelineData.name || 'Özel Pipeline'
+          })
+        })
+        
+        if (newSessionResponse.ok) {
+          const sessionData = await newSessionResponse.json()
+          sessionId = sessionData.id
+          setCurrentSessionId(sessionId)
+          if (sessionId) {
+            localStorage.setItem('activeSessionId', sessionId.toString())
+          }
+        }
+      }
+
+      // Pipeline sonucunu backend'e kaydet
+      if (sessionId) {
+        // User message'ı kaydet
+        await fetch('http://localhost:5170/api/prompt/save-pipeline-message', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            content: pipelineData.userInput || '',
+            isUserMessage: true,
+            pipelineId: 999, // Custom pipeline için özel ID
+            pipelineName: pipelineData.name
+          })
+        })
+
+        // AI response'ı kaydet
+        await fetch('http://localhost:5170/api/prompt/save-pipeline-message', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            content: finalResult,
+            isUserMessage: false,
+            pipelineId: 999,
+            pipelineName: pipelineData.name
+          })
+        })
+      }
+
+      // Mesajları chat'e ekle
+      const userMessage: ChatMessage = {
+        id: Date.now().toString() + '-user',
+        role: 'user',
+        content: pipelineData.userInput || '',
+        providerId: 'custom-pipeline',
+        providerName: 'Özel Pipeline',
+        timestamp: new Date(),
+        prompt: pipelineData.userInput || ''
+      }
+
+      const aiMessage: ChatMessage = {
+        id: Date.now().toString() + '-ai',
+        role: 'assistant',
+        content: finalResult,
+        providerId: 'custom-pipeline',
+        providerName: pipelineData.name,
+        timestamp: new Date()
+      }
+
+      setMessages(prev => [...prev, userMessage, aiMessage])
+
+    } catch (error) {
+      console.error('Pipeline çalıştırılırken hata:', error)
+      alert('Pipeline çalıştırılırken bir hata oluştu: ' + error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Yüklenme durumu
   if (providersLoading) {
     return (
@@ -316,10 +616,41 @@ const handleLoadSession = async (sessionId: string) => {
                 </div>
               )}
               
-              <QuickActions
-                onShowHistory={() => setShowHistory(true)}
-                onNewChat={handleNewChat}
-              />
+              {/* Hızlı İşlemler */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Hızlı İşlemler
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={handleNewChat}
+                    className="w-full px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                  >
+                    Yeni Chat
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowHistory(true)}
+                    className="w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md transition-colors"
+                  >
+                    Chat Geçmişi
+                  </button>
+
+                  <button
+                    onClick={() => setShowPipelines(true)}
+                    className="w-full px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
+                  >
+                    Pipeline Templates
+                  </button>
+
+                  <button
+                    onClick={() => setShowPipelineBuilder(true)}
+                    className="w-full px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md transition-colors"
+                  >
+                    Özel Pipeline Oluştur
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Ana Sohbet Alanı */}
@@ -346,6 +677,23 @@ const handleLoadSession = async (sessionId: string) => {
           onLoadSession={handleLoadSession}
           currentSessionId={currentSessionId ? currentSessionId.toString() : ''}
         />
+
+        {/* Pipeline Templates Modalı */}
+        {showPipelines && (
+          <PipelineTemplates
+            onExecutePipeline={handleExecutePipeline}
+            onClose={() => setShowPipelines(false)}
+          />
+        )}
+
+        {/* Pipeline Builder Modalı */}
+        {showPipelineBuilder && (
+          <PipelineBuilder
+            isOpen={showPipelineBuilder}
+            onClose={() => setShowPipelineBuilder(false)}
+            onExecutePipeline={handleExecuteCustomPipeline}
+          />
+        )}
       </div>
     </ProtectedRoute>
   )

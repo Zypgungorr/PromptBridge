@@ -32,17 +32,65 @@ namespace PromptBridge.API.Controllers
             var sessions = await _context.ChatSessions
                 .Where(s => s.UserId == userId)
                 .OrderByDescending(s => s.LastActivityAt)
-                .Select(s => new ChatSessionDto
-                {
+                .Select(s => new {
                     Id = s.Id,
                     Title = s.Title,
                     CreatedAt = s.CreatedAt,
                     LastActivityAt = s.LastActivityAt,
-                    MessageCount = _context.ChatMessages.Count(m => m.ChatSessionId == s.Id)
+                    MessageCount = _context.ChatMessages.Count(m => m.ChatSessionId == s.Id),
+                    FirstUserMessage = _context.ChatMessages
+                        .Where(m => m.ChatSessionId == s.Id && m.IsUserMessage)
+                        .OrderBy(m => m.CreatedAt)
+                        .Select(m => m.Content)
+                        .FirstOrDefault()
                 })
                 .ToListAsync();
 
-            return Ok(sessions);
+            // 0 mesajlı session'ları filtrele ve title'ları güncelle
+            var filteredSessions = sessions
+                .Where(s => s.MessageCount > 0)
+                .Select(s => new ChatSessionDto
+                {
+                    Id = s.Id,
+                    Title = GenerateChatTitle(s.FirstUserMessage, s.Title ?? "Yeni Sohbet"),
+                    CreatedAt = s.CreatedAt,
+                    LastActivityAt = s.LastActivityAt,
+                    MessageCount = s.MessageCount
+                })
+                .ToList();
+
+            return Ok(filteredSessions);
+        }
+
+        private string GenerateChatTitle(string? firstUserMessage, string currentTitle)
+        {
+            // Eğer mesaj yoksa veya "Yeni Sohbet" ise, ilk kullanıcı mesajından başlık oluştur
+            if (string.IsNullOrEmpty(firstUserMessage))
+                return currentTitle;
+
+            if (currentTitle == "Yeni Sohbet" || string.IsNullOrEmpty(currentTitle))
+            {
+                // İlk 50 karakteri al ve kelimeleri böl
+                var title = firstUserMessage.Length > 50 
+                    ? firstUserMessage.Substring(0, 50).Trim() 
+                    : firstUserMessage.Trim();
+                
+                // Son kelimeyi tamamla
+                var lastSpaceIndex = title.LastIndexOf(' ');
+                if (lastSpaceIndex > 0 && title.Length > 30)
+                {
+                    title = title.Substring(0, lastSpaceIndex);
+                }
+                
+                if (title.Length < firstUserMessage.Length)
+                {
+                    title += "...";
+                }
+                
+                return title;
+            }
+
+            return currentTitle;
         }
 
         [HttpGet("sessions/{sessionId}/messages")]
@@ -69,7 +117,7 @@ namespace PromptBridge.API.Controllers
                     Content = m.Content,
                     IsUserMessage = m.IsUserMessage,
                     AIProviderId = m.AIProviderId,
-                    AIProviderName = m.AIProvider.Name,
+                    AIProviderName = m.AIProvider != null ? m.AIProvider.Name : "Bilinmeyen",
                     CreatedAt = m.CreatedAt
                 })
                 .ToListAsync();

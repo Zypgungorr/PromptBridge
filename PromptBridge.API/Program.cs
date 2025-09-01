@@ -64,6 +64,11 @@ builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAIService, AIService>();
 
+// Add new Pipeline System Services
+builder.Services.AddScoped<IPipelineService, PipelineService>();
+builder.Services.AddScoped<IMemoryService, MemoryService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+
 // Add CORS
 builder.Services.AddCors(options =>
 {

@@ -198,6 +198,56 @@ namespace PromptBridge.API.Controllers
             }
         }
 
+        [HttpPost("save-pipeline-message")]
+        public async Task<ActionResult> SavePipelineMessage([FromBody] SavePipelineMessageDto request)
+        {
+            try
+            {
+                // Extract user ID from JWT token
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    return Unauthorized(new { message = "Invalid user token" });
+                }
+
+                // Get session
+                var session = await _context.ChatSessions
+                    .FirstOrDefaultAsync(s => s.Id == request.SessionId && s.UserId == userId);
+
+                if (session == null)
+                {
+                    return NotFound(new { message = "Session not found" });
+                }
+
+                // Save message
+                var message = new ChatMessage
+                {
+                    ChatSessionId = session.Id,
+                    Content = request.Content,
+                    IsUserMessage = request.IsUserMessage,
+                    AIProviderId = request.PipelineId, // Pipeline ID'yi provider olarak kullan
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.ChatMessages.Add(message);
+                session.LastActivityAt = DateTime.UtcNow;
+                
+                // Eğer bu ilk kullanıcı mesajıysa ve pipeline adı varsa, session title'ını güncelle
+                if (request.IsUserMessage && !string.IsNullOrEmpty(request.PipelineName) && 
+                    (session.Title == "Yeni Sohbet" || (session.Title != null && session.Title.Contains("Pipeline"))))
+                {
+                    session.Title = request.PipelineName;
+                }
+                
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Pipeline message saved successfully" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error saving pipeline message: {ex.Message}" });
+            }
+        }
 
     }
 }

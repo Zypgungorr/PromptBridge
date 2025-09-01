@@ -14,6 +14,15 @@ namespace PromptBridge.API.Data
         public DbSet<PromptRequest> PromptRequests { get; set; }
         public DbSet<ChatSession> ChatSessions { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        
+        // New Pipeline System Tables
+        public DbSet<Pipeline> Pipelines { get; set; }
+        public DbSet<PipelineExecution> PipelineExecutions { get; set; }
+        public DbSet<PipelineStep> PipelineSteps { get; set; }
+        
+        // Memory & Analytics Tables
+        public DbSet<UserMemory> UserMemories { get; set; }
+        public DbSet<PerformanceMetric> PerformanceMetrics { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -148,6 +157,115 @@ namespace PromptBridge.API.Data
                 //     CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 // }
             );
+
+            // Pipeline configuration
+            modelBuilder.Entity<Pipeline>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Description).HasMaxLength(1000);
+                entity.Property(e => e.Configuration).IsRequired();
+                entity.Property(e => e.IsActive).IsRequired();
+                entity.Property(e => e.IsTemplate).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired();
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // PipelineExecution configuration
+            modelBuilder.Entity<PipelineExecution>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.InitialPrompt).IsRequired();
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.StartedAt).IsRequired();
+                entity.Property(e => e.ErrorMessage).HasMaxLength(1000);
+                entity.Property(e => e.UserSatisfactionScore).HasPrecision(3, 2);
+
+                entity.HasOne(e => e.Pipeline)
+                    .WithMany(p => p.Executions)
+                    .HasForeignKey(e => e.PipelineId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // PipelineStep configuration
+            modelBuilder.Entity<PipelineStep>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.StepOrder).IsRequired();
+                entity.Property(e => e.StepType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Prompt).IsRequired();
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.ErrorMessage).HasMaxLength(1000);
+                entity.Property(e => e.PerformanceScore).HasPrecision(5, 2);
+
+                entity.HasOne(e => e.Execution)
+                    .WithMany(ex => ex.Steps)
+                    .HasForeignKey(e => e.ExecutionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.AIProvider)
+                    .WithMany()
+                    .HasForeignKey(e => e.AIProviderId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // UserMemory configuration
+            modelBuilder.Entity<UserMemory>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.MemoryType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Key).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Value).IsRequired();
+                entity.Property(e => e.Confidence).HasPrecision(5, 4);
+                entity.Property(e => e.CreatedAt).IsRequired();
+                entity.Property(e => e.LastUsedAt).IsRequired();
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => new { e.UserId, e.MemoryType, e.Key }).IsUnique();
+            });
+
+            // PerformanceMetric configuration
+            modelBuilder.Entity<PerformanceMetric>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.MetricType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Value).IsRequired().HasPrecision(18, 6);
+                entity.Property(e => e.Unit).HasMaxLength(50);
+                entity.Property(e => e.CreatedAt).IsRequired();
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.AIProvider)
+                    .WithMany()
+                    .HasForeignKey(e => e.AIProviderId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.PipelineExecution)
+                    .WithMany()
+                    .HasForeignKey(e => e.PipelineExecutionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.ChatSession)
+                    .WithMany()
+                    .HasForeignKey(e => e.ChatSessionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
         }
     }
 }
